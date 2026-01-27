@@ -147,11 +147,155 @@
             color: #0c5460;
         }
 
+        .status-shipped {
+            background: #cfe2ff;
+            color: #084298;
+        }
+
+        .status-delivered {
+            background: #d4edda;
+            color: #155724;
+        }
+
         .order-total {
             font-size: 24px;
             font-weight: 700;
             color: #C59D5F;
             margin-left: 20px;
+        }
+
+        .order-tracking {
+            margin-top: 25px;
+            padding-top: 25px;
+            border-top: 2px solid #f0f0f0;
+        }
+
+        .tracking-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .tracking-timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+
+        .tracking-line {
+            position: absolute;
+            left: 15px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #e0e0e0;
+        }
+
+        .tracking-step {
+            position: relative;
+            padding-bottom: 25px;
+        }
+
+        .tracking-step:last-child {
+            padding-bottom: 0;
+        }
+
+        .tracking-step.active .tracking-icon {
+            background: #C59D5F;
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .tracking-step.completed .tracking-icon {
+            background: #28a745;
+            color: white;
+        }
+
+        .tracking-step.completed .tracking-line-segment {
+            background: #28a745;
+        }
+
+        .tracking-icon {
+            position: absolute;
+            left: -23px;
+            top: 0;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .tracking-line-segment {
+            position: absolute;
+            left: -17px;
+            top: 32px;
+            width: 2px;
+            height: 25px;
+            background: #e0e0e0;
+        }
+
+        .tracking-step:last-child .tracking-line-segment {
+            display: none;
+        }
+
+        .tracking-content {
+            margin-left: 10px;
+        }
+
+        .tracking-label {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 3px;
+        }
+
+        .tracking-step.active .tracking-label {
+            color: #C59D5F;
+        }
+
+        .tracking-step.completed .tracking-label {
+            color: #28a745;
+        }
+
+        .tracking-date {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .payment-info {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .payment-method {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .payment-status {
+            padding: 5px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .payment-status.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .payment-status.completed {
+            background: #d4edda;
+            color: #155724;
         }
 
         .order-items {
@@ -341,6 +485,113 @@
                         <div class="item-price">₹{{ "%.2f"|format(item.price * item.quantity) }}</div>
                     </div>
                     {% endfor %}
+                </div>
+
+                {% if order_data.order.status.lower() in ['delivered', 'completed'] %}
+                <div style="margin-top: 18px; padding: 14px; background:#f8f9fa; border-radius: 10px;">
+                    <div style="font-weight:700; color:#333; margin-bottom:10px;">⭐ Rate your products</div>
+                    {% for item in order_data.order_items %}
+                        <form method="POST" action="/rate-product/{{ item.product_id }}" style="display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
+                            <div style="flex:1; min-width: 220px; color:#333; font-weight:600;">{{ item.name }}</div>
+                            <select name="rating" required style="padding:8px; border:2px solid #e0e0e0; border-radius:8px;">
+                                <option value="">Rating</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                            </select>
+                            <input name="comment" placeholder="Optional comment" style="padding:8px; border:2px solid #e0e0e0; border-radius:8px; min-width: 220px; flex:2;">
+                            <button type="submit" style="padding:10px 14px; border:none; border-radius:8px; background:#C59D5F; color:white; font-weight:700; cursor:pointer;">Submit</button>
+                        </form>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <div class="payment-info">
+                    <div>
+                        <span class="payment-method">
+                            Payment Method: 
+                            {% if order_data.order.payment_method == 'cod' %}
+                                💵 Cash on Delivery
+                            {% elif order_data.order.payment_method == 'upi' %}
+                                📱 UPI Payment
+                            {% elif order_data.order.payment_method == 'card' %}
+                                💳 Card Payment
+                            {% else %}
+                                {{ order_data.order.payment_method|upper }}
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div>
+                        <span class="payment-status {{ order_data.order.payment_status or 'pending' }}">
+                            {{ (order_data.order.payment_status or 'pending')|upper }}
+                        </span>
+                    </div>
+                </div>
+                
+                {% if order_data.order.status.lower() not in ['delivered', 'completed', 'cancelled'] %}
+                <div style="margin-top: 15px; padding: 12px; background:#fff3cd; border-radius: 8px; border-left: 4px solid #ffc107;">
+                    <form method="POST" action="/cancel-order/{{ order_data.order.id }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to cancel this order? This action cannot be undone.');">
+                        <button type="submit" style="padding: 8px 16px; background:#dc3545; color:white; border:none; border-radius:6px; font-weight:600; cursor:pointer;">
+                            ❌ Cancel Order
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
+
+                <div class="order-tracking">
+                    <div class="tracking-title">📦 Order Tracking</div>
+                    <div class="tracking-timeline">
+                        <div class="tracking-line"></div>
+                        
+                        {% set stages = [
+                            ('pending', 'Order Placed', '📦'),
+                            ('accepted', 'Order Accepted', '✅'),
+                            ('processing', 'Processing', '⚙️'),
+                            ('shipped', 'Shipped', '🚚'),
+                            ('delivered', 'Delivered', '🎉')
+                        ] %}
+                        
+                        {% set current_status = order_data.order.status.lower() %}
+                        {% set status_order = {'pending': 1, 'accepted': 2, 'processing': 3, 'shipped': 4, 'delivered': 5, 'completed': 5, 'cancelled': 0} %}
+                        {% set current_order = status_order.get(current_status, 0) %}
+                        
+                        {% for stage_key, stage_label, stage_icon in stages %}
+                            {% set stage_order = status_order.get(stage_key, 0) %}
+                            {% if current_status == 'cancelled' %}
+                                <div class="tracking-step {% if stage_key == 'pending' %}completed{% endif %}">
+                                    <div class="tracking-icon">{{ stage_icon }}</div>
+                                    <div class="tracking-line-segment"></div>
+                                    <div class="tracking-content">
+                                        <div class="tracking-label">{{ stage_label }}</div>
+                                        {% if stage_key == 'pending' %}
+                                        <div class="tracking-date">{{ order_data.order.created_at if order_data.order.created_at else 'N/A' }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% elif stage_order <= current_order %}
+                                <div class="tracking-step {% if stage_order == current_order %}active{% else %}completed{% endif %}">
+                                    <div class="tracking-icon">{{ stage_icon }}</div>
+                                    <div class="tracking-line-segment"></div>
+                                    <div class="tracking-content">
+                                        <div class="tracking-label">{{ stage_label }}</div>
+                                        {% if stage_order == current_order %}
+                                        <div class="tracking-date">{{ order_data.order.updated_at if order_data.order.updated_at else order_data.order.created_at if order_data.order.created_at else 'N/A' }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% else %}
+                                <div class="tracking-step">
+                                    <div class="tracking-icon">{{ stage_icon }}</div>
+                                    <div class="tracking-line-segment"></div>
+                                    <div class="tracking-content">
+                                        <div class="tracking-label" style="color: #999;">{{ stage_label }}</div>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
             {% endfor %}

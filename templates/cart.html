@@ -354,11 +354,8 @@
             <a href="{% if session.get('user_id') %}/dashboard{% else %}/products{% endif %}" class="nav-brand" style="text-decoration: none; color: white;">🛋️ FurnishFusion</a>
             <div class="nav-links">
                 <a href="/products">Products</a>
-                <a href="/cart">Cart 
-                    {% if session.get('cart') %}
-                    <span class="cart-badge">{{ session.cart|length }}</span>
-                    {% endif %}
-                </a>
+                <a href="/cart">Cart {% if session.get('cart') %}<span class="cart-badge">{{ session.cart|length }}</span>{% endif %}</a>
+                <a href="/wishlist">Wishlist {% if wishlist_count is defined and wishlist_count %}<span class="cart-badge">{{ wishlist_count }}</span>{% endif %}</a>
                 {% if session.get('user_id') %}
                 <a href="/dashboard">Dashboard</a>
                 <a href="/orders">Orders</a>
@@ -392,7 +389,13 @@
             <div class="cart-items">
                 {% for item in cart_items %}
                 <div class="cart-item">
-                    <div class="item-image">🪑</div>
+                    <div class="item-image" style="overflow:hidden;">
+                        {% if item.image_url %}
+                            <img src="{{ item.image_url }}" alt="{{ item.name }}" style="width:100%; height:100%; object-fit:cover;">
+                        {% else %}
+                            🪑
+                        {% endif %}
+                    </div>
                     <div class="item-details">
                         <div class="item-name">{{ item.name }}</div>
                         <div class="item-description">{{ item.description or 'Premium quality furniture' }}</div>
@@ -435,9 +438,9 @@
                     <span class="summary-value summary-total">₹{{ "%.2f"|format(total) }}</span>
                 </div>
                 {% if session.get('user_id') %}
-                <form method="POST" action="/place-order">
-                    <button type="submit" class="btn-place-order">Place Order</button>
-                </form>
+                <a href="/checkout" class="btn-place-order" style="text-align: center; text-decoration: none; display: block;">
+                    Proceed to Checkout
+                </a>
                 {% else %}
                 <a href="/login" class="btn-place-order" style="text-align: center; text-decoration: none; display: block;">
                     Login to Place Order

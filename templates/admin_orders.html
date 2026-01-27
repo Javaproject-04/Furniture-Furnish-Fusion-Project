@@ -146,6 +146,16 @@
             color: #721c24;
         }
 
+        .status-shipped {
+            background: #cfe2ff;
+            color: #084298;
+        }
+
+        .status-delivered {
+            background: #d4edda;
+            color: #155724;
+        }
+
         .order-total {
             font-size: 24px;
             font-weight: 700;
@@ -324,6 +334,38 @@
                     </div>
                 </div>
 
+                <div style="margin-top: 10px; padding: 12px; background:#f8f9fa; border-radius: 10px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+                    <div style="color:#333; font-weight:600;">
+                        Payment:
+                        {% if order_data.order.payment_method == 'cod' %}💵 COD{% elif order_data.order.payment_method == 'upi' %}📱 UPI{% else %}{{ order_data.order.payment_method|upper }}{% endif %}
+                        | Status: {{ (order_data.order.payment_status or 'pending')|upper }}
+                        {% if order_data.order.advance_amount %}
+                            | Advance: ₹{{ "%.2f"|format(order_data.order.advance_amount) }}
+                        {% endif %}
+                    </div>
+                    {% if order_data.order.payment_proof_url %}
+                        <a href="{{ order_data.order.payment_proof_url }}" target="_blank" style="color:#B8860B; font-weight:700; text-decoration:none;">
+                            View payment screenshot
+                        </a>
+                    {% endif %}
+                </div>
+                
+                {% if order_data.order.contact_mobile or order_data.order.contact_address %}
+                <div style="margin-top: 10px; padding: 12px; background:#e8f4f8; border-radius: 10px; border-left: 4px solid #17a2b8;">
+                    <div style="font-weight:700; color:#333; margin-bottom:8px;">📞 Contact Details:</div>
+                    {% if order_data.order.contact_mobile %}
+                        <div style="margin-bottom:5px; color:#333;">
+                            <strong>Mobile:</strong> {{ order_data.order.contact_mobile }}
+                        </div>
+                    {% endif %}
+                    {% if order_data.order.contact_address %}
+                        <div style="color:#333;">
+                            <strong>Address:</strong> {{ order_data.order.contact_address }}
+                        </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
                 <div class="status-actions">
                     {% if order_data.order.status.lower() == 'pending' %}
                     <form method="POST" action="/admin/orders/update-status/{{ order_data.order.id }}" style="display: inline;">
@@ -345,8 +387,22 @@
                     </form>
                     {% elif order_data.order.status.lower() == 'processing' %}
                     <form method="POST" action="/admin/orders/update-status/{{ order_data.order.id }}" style="display: inline;">
+                        <input type="hidden" name="status" value="shipped">
+                        <button type="submit" class="btn-status btn-complete">🚚 Mark as Shipped</button>
+                    </form>
+                    <form method="POST" action="/admin/orders/update-status/{{ order_data.order.id }}" style="display: inline;">
+                        <input type="hidden" name="status" value="cancelled">
+                        <button type="submit" class="btn-status btn-cancel" onclick="return confirm('Are you sure you want to cancel this order?');">✗ Cancel Order</button>
+                    </form>
+                    {% elif order_data.order.status.lower() == 'shipped' %}
+                    <form method="POST" action="/admin/orders/update-status/{{ order_data.order.id }}" style="display: inline;">
+                        <input type="hidden" name="status" value="delivered">
+                        <button type="submit" class="btn-status btn-complete">🎉 Mark as Delivered</button>
+                    </form>
+                    {% elif order_data.order.status.lower() == 'delivered' %}
+                    <form method="POST" action="/admin/orders/update-status/{{ order_data.order.id }}" style="display: inline;">
                         <input type="hidden" name="status" value="completed">
-                        <button type="submit" class="btn-status btn-complete">✓ Mark as Completed</button>
+                        <button type="submit" class="btn-status btn-complete">✅ Mark as Completed</button>
                     </form>
                     {% endif %}
                 </div>

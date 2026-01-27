@@ -30,6 +30,20 @@ init_db()
 # Register teardown handler to close database connections
 app.teardown_appcontext(close_db)
 
+
+@app.context_processor
+def inject_wishlist_count():
+    from flask import session
+    n = 0
+    if session.get("user_id"):
+        try:
+            from db import get_db
+            r = get_db().execute("SELECT COUNT(*) as c FROM wishlist WHERE user_id = ?", (session["user_id"],)).fetchone()
+            n = r["c"] or 0
+        except Exception:
+            pass
+    return {"wishlist_count": n}
+
 @app.route('/')
 def index():
     from flask import redirect, session

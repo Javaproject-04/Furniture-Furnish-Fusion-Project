@@ -104,6 +104,8 @@ def add_product():
         description = request.form.get("description", "").strip()
         price = request.form.get("price", "").strip()
         image_url = request.form.get("image_url", "").strip()
+        category = request.form.get("category", "").strip()
+        rating = request.form.get("rating", "").strip()
         
         # Validation
         if not name or not price:
@@ -117,6 +119,22 @@ def add_product():
         except ValueError:
             flash("Invalid price. Please enter a valid number.", "error")
             return render_template("admin_add_product.html")
+        
+        # Validate and set rating
+        if rating:
+            try:
+                rating = float(rating)
+                if rating < 0 or rating > 5:
+                    rating = 0.0
+            except ValueError:
+                rating = 0.0
+        else:
+            rating = 0.0
+        
+        # Auto-detect category if not provided
+        if not category:
+            from utils import detect_category
+            category = detect_category(name)
         
         # Handle file upload
         uploaded_file = request.files.get('image_file')
@@ -137,11 +155,11 @@ def add_product():
         db = get_db()
         try:
             db.execute(
-                "INSERT INTO products (name, description, price, image_url) VALUES (?, ?, ?, ?)",
-                (name, description, price, image_url)
+                "INSERT INTO products (name, description, price, image_url, category, rating) VALUES (?, ?, ?, ?, ?, ?)",
+                (name, description, price, image_url, category, rating)
             )
             db.commit()
-            flash(f"Product '{name}' added successfully!", "success")
+            flash(f"Product '{name}' added successfully! Category: {category}", "success")
             return redirect("/admin/products")
         except Exception as e:
             db.rollback()
@@ -218,9 +236,10 @@ def admin_orders():
 @admin_bp.route("/admin/orders/update-status/<int:order_id>", methods=["POST"])
 @admin_required
 def update_order_status(order_id):
+    from datetime import datetime
     new_status = request.form.get("status", "").strip().lower()
     
-    if new_status not in ["pending", "accepted", "processing", "completed", "cancelled"]:
+    if new_status not in ["pending", "accepted", "processing", "shipped", "delivered", "completed", "cancelled"]:
         flash("Invalid status!", "error")
         return redirect("/admin/orders")
     
@@ -234,16 +253,27 @@ def update_order_status(order_id):
         return redirect("/admin/orders")
     
     try:
+        # Update order status and timestamp
         db.execute(
-            "UPDATE orders SET status = ? WHERE id = ?",
-            (new_status, order_id)
+            "UPDATE orders SET status = ?, updated_at = ? WHERE id = ?",
+            (new_status, datetime.now().isoformat(timespec="seconds"), order_id)
         )
+        
+        # If order is delivered or completed, mark payment as completed if COD
+        if new_status in ["delivered", "completed"] and order["payment_method"] == "cod":
+            db.execute(
+                "UPDATE orders SET payment_status = ? WHERE id = ?",
+                ("completed", order_id)
+            )
+        
         db.commit()
         
         status_messages = {
             "accepted": "Order accepted successfully!",
             "cancelled": "Order cancelled successfully!",
             "processing": "Order status updated to processing!",
+            "shipped": "Order marked as shipped!",
+            "delivered": "Order marked as delivered!",
             "completed": "Order marked as completed!",
             "pending": "Order status reset to pending!"
         }
@@ -254,6 +284,97 @@ def update_order_status(order_id):
         flash("An error occurred while updating the order status.", "error")
     
     return redirect("/admin/orders")
+
+
+@admin_bp.route("/admin/contact/qr", methods=["POST"])
+@admin_required
+def save_upi_qr():
+    db = get_db()
+    uploaded_file = request.files.get("qr_file")
+    image_url = request.form.get("qr_image_url", "").strip()
+    if uploaded_file and uploaded_file.filename:
+        if not allowed_file(uploaded_file.filename):
+            flash("Invalid file type. Allowed: PNG, JPG, JPEG, GIF, WEBP", "error")
+            return redirect("/admin/contact")
+        import time
+        filename = str(int(time.time())) + "_upi_qr_" + secure_filename(uploaded_file.filename)
+        filepath = os.path.join(current_app.config["UPLOAD_FOLDER"], filename)
+        uploaded_file.save(filepath)
+        image_url = url_for("static", filename=f"uploads/{filename}")
+    if not image_url:
+        flash("Please upload a QR image or provide an image URL.", "error")
+        return redirect("/admin/contact")
+    try:
+        db.execute("UPDATE upi_qr SET image_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1", (image_url,))
+        db.commit()
+        flash("UPI QR updated successfully!", "success")
+    except Exception:
+        db.rollback()
+        flash("Failed to update UPI QR.", "error")
+    return redirect("/admin/contact")
+
+
+@admin_bp.route("/admin/contact/coupon/add", methods=["POST"])
+@admin_required
+def add_coupon():
+    db = get_db()
+    code = request.form.get("code", "").strip().upper()
+    discount_type = request.form.get("discount_type", "percent").strip()
+    discount_value = request.form.get("discount_value", "").strip()
+    if not code or not discount_value:
+        flash("Coupon code and discount value are required.", "error")
+        return redirect("/admin/contact")
+    if discount_type not in ("percent", "fixed"):
+        discount_type = "percent"
+    try:
+        val = float(discount_value)
+        if val <= 0 or (discount_type == "percent" and val > 100):
+            raise ValueError("invalid")
+    except ValueError:
+        flash("Invalid discount value.", "error")
+        return redirect("/admin/contact")
+    try:
+        db.execute(
+            "INSERT INTO coupons (code, discount_type, discount_value, is_active) VALUES (?, ?, ?, 1)",
+            (code, discount_type, val)
+        )
+        db.commit()
+        flash(f"Coupon {code} added.", "success")
+    except Exception:
+        db.rollback()
+        flash("Coupon code may already exist or invalid.", "error")
+    return redirect("/admin/contact")
+
+
+@admin_bp.route("/admin/contact/coupon/<int:cid>/toggle", methods=["POST"])
+@admin_required
+def toggle_coupon(cid):
+    db = get_db()
+    try:
+        row = db.execute("SELECT is_active FROM coupons WHERE id = ?", (cid,)).fetchone()
+        if row:
+            new = 0 if row["is_active"] else 1
+            db.execute("UPDATE coupons SET is_active = ? WHERE id = ?", (new, cid))
+            db.commit()
+            flash("Coupon status updated.", "success")
+    except Exception:
+        db.rollback()
+        flash("Could not update coupon.", "error")
+    return redirect("/admin/contact")
+
+
+@admin_bp.route("/admin/contact/coupon/<int:cid>/delete", methods=["POST"])
+@admin_required
+def delete_coupon(cid):
+    db = get_db()
+    try:
+        db.execute("DELETE FROM coupons WHERE id = ?", (cid,))
+        db.commit()
+        flash("Coupon deleted.", "success")
+    except Exception:
+        db.rollback()
+        flash("Could not delete coupon.", "error")
+    return redirect("/admin/contact")
 
 
 @admin_bp.route("/admin/contact", methods=["GET", "POST"])
@@ -276,7 +397,9 @@ def manage_contact():
         if not company_name or not email or not phone or not address:
             flash("Company name, email, phone, and address are required!", "error")
             contact_info = db.execute("SELECT * FROM contact_info LIMIT 1").fetchone()
-            return render_template("admin_contact.html", contact_info=contact_info)
+            upi_qr = db.execute("SELECT * FROM upi_qr WHERE id = 1").fetchone()
+            coupons = db.execute("SELECT * FROM coupons ORDER BY id DESC").fetchall()
+            return render_template("admin_contact.html", contact_info=contact_info, upi_qr=upi_qr, coupons=coupons)
         
         try:
             # Check if contact info exists
@@ -308,11 +431,15 @@ def manage_contact():
             db.rollback()
             flash("An error occurred while updating contact details. Please try again.", "error")
             contact_info = db.execute("SELECT * FROM contact_info LIMIT 1").fetchone()
-            return render_template("admin_contact.html", contact_info=contact_info)
+            upi_qr = db.execute("SELECT * FROM upi_qr WHERE id = 1").fetchone()
+            coupons = db.execute("SELECT * FROM coupons ORDER BY id DESC").fetchall()
+            return render_template("admin_contact.html", contact_info=contact_info, upi_qr=upi_qr, coupons=coupons)
     
-    # GET request - show current contact info
+    # GET - contact, UPI QR, coupons
     contact_info = db.execute("SELECT * FROM contact_info LIMIT 1").fetchone()
-    return render_template("admin_contact.html", contact_info=contact_info)
+    upi_qr = db.execute("SELECT * FROM upi_qr WHERE id = 1").fetchone()
+    coupons = db.execute("SELECT * FROM coupons ORDER BY id DESC").fetchall()
+    return render_template("admin_contact.html", contact_info=contact_info, upi_qr=upi_qr, coupons=coupons)
 
 
 @admin_bp.route("/admin/logout")

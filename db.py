@@ -35,9 +35,22 @@ def init_db():
             description TEXT,
             price REAL NOT NULL,
             image_url TEXT,
+            category TEXT,
+            rating REAL DEFAULT 0.0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    
+    # Add category and rating columns if they don't exist (for existing databases)
+    try:
+        cursor.execute("ALTER TABLE products ADD COLUMN category TEXT")
+    except:
+        pass
+    
+    try:
+        cursor.execute("ALTER TABLE products ADD COLUMN rating REAL DEFAULT 0.0")
+    except:
+        pass
     
     # Create orders table
     cursor.execute('''
@@ -46,10 +59,47 @@ def init_db():
             user_id INTEGER NOT NULL,
             total REAL NOT NULL,
             status TEXT DEFAULT 'pending',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            payment_method TEXT DEFAULT 'cod',
+            payment_status TEXT DEFAULT 'pending',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT,
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     ''')
+    
+    # Add payment and tracking columns if they don't exist (for existing databases)
+    try:
+        cursor.execute("ALTER TABLE orders ADD COLUMN payment_method TEXT DEFAULT 'cod'")
+    except:
+        pass
+    
+    try:
+        cursor.execute("ALTER TABLE orders ADD COLUMN payment_status TEXT DEFAULT 'pending'")
+    except:
+        pass
+    
+    # NOTE: SQLite ALTER TABLE has restrictions around non-constant defaults.
+    # Add columns in a migration-safe way (no DEFAULT expressions here).
+    try:
+        cursor.execute("ALTER TABLE orders ADD COLUMN updated_at TEXT")
+    except Exception:
+        pass
+
+    # Optional: backfill updated_at for existing rows if column exists
+    try:
+        cursor.execute("UPDATE orders SET updated_at = COALESCE(updated_at, created_at, CURRENT_TIMESTAMP)")
+    except Exception:
+        pass
+
+    # UPI QR + payment proof support (added safely for existing DBs)
+    try:
+        cursor.execute("ALTER TABLE orders ADD COLUMN advance_amount REAL")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE orders ADD COLUMN payment_proof_url TEXT")
+    except Exception:
+        pass
     
     # Create order_items table
     cursor.execute('''
@@ -63,6 +113,78 @@ def init_db():
             FOREIGN KEY (product_id) REFERENCES products(id)
         )
     ''')
+
+    # User ratings (users rate products, not admin)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS product_reviews (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            product_id INTEGER NOT NULL,
+            rating INTEGER NOT NULL CHECK(rating >= 1 AND rating <= 5),
+            comment TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, product_id),
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (product_id) REFERENCES products(id)
+        )
+    ''')
+
+    # Store a single UPI QR code (admin managed)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS upi_qr (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            image_url TEXT,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    try:
+        cursor.execute("INSERT OR IGNORE INTO upi_qr (id, image_url) VALUES (1, NULL)")
+    except Exception:
+        pass
+
+    # Wishlist (user_id, product_id)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS wishlist (
+            user_id INTEGER NOT NULL,
+            product_id INTEGER NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (user_id, product_id),
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (product_id) REFERENCES products(id)
+        )
+    ''')
+
+    # Coupons: code, discount_type ('percent'|'fixed'), discount_value, is_active (1=active, 0=deleted/inactive)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS coupons (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT UNIQUE NOT NULL,
+            discount_type TEXT NOT NULL CHECK(discount_type IN ('percent','fixed')),
+            discount_value REAL NOT NULL,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # Order discount (for applied coupon)
+    try:
+        cursor.execute("ALTER TABLE orders ADD COLUMN coupon_id INTEGER REFERENCES coupons(id)")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE orders ADD COLUMN discount_amount REAL DEFAULT 0")
+    except Exception:
+        pass
+    
+    # Contact details for orders (mobile and address)
+    try:
+        cursor.execute("ALTER TABLE orders ADD COLUMN contact_mobile TEXT")
+    except Exception:
+        pass
+    try:
+        cursor.execute("ALTER TABLE orders ADD COLUMN contact_address TEXT")
+    except Exception:
+        pass
     
     # Create admins table
     cursor.execute('''

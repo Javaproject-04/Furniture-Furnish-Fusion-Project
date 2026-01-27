@@ -157,9 +157,8 @@
         }
 
         @media (max-width: 768px) {
-            .form-row {
-                grid-template-columns: 1fr;
-            }
+            .form-row { grid-template-columns: 1fr; }
+            .qr-section { grid-template-columns: 1fr !important; }
         }
     </style>
 </head>
@@ -269,6 +268,84 @@
 
                 <button type="submit" class="btn-submit">Save Contact Details</button>
             </form>
+        </div>
+
+        <div class="form-card" style="margin-top: 30px;">
+            <div class="form-header">
+                <h1>UPI QR Code</h1>
+                <p>Upload QR for users to pay 5% advance (shown at checkout when they choose UPI).</p>
+            </div>
+            <div class="qr-section" style="display: grid; grid-template-columns: 200px 1fr; gap: 20px; align-items: start;">
+                <div style="background:#f8f9fa; border:2px dashed #ddd; border-radius:12px; padding:16px; min-height:180px; display:flex; align-items:center; justify-content:center;">
+                    {% if upi_qr and upi_qr.image_url %}
+                        <img src="{{ upi_qr.image_url }}" alt="UPI QR" style="max-width:100%; max-height:160px; border-radius:8px;">
+                    {% else %}
+                        <span style="color:#999;">No QR</span>
+                    {% endif %}
+                </div>
+                <form method="POST" action="/admin/contact/qr" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label>Upload QR image</label>
+                        <input type="file" name="qr_file" accept="image/*">
+                    </div>
+                    <div class="form-group">
+                        <label>Or image URL</label>
+                        <input type="url" name="qr_image_url" placeholder="https://...">
+                    </div>
+                    <button type="submit" class="btn-submit">Save QR</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="form-card" style="margin-top: 30px;">
+            <div class="form-header">
+                <h1>Coupons</h1>
+                <p>Only <strong>active</strong> coupons give discounts. Users enter the code at checkout.</p>
+            </div>
+            <form method="POST" action="/admin/contact/coupon/add" class="form-inline" style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:24px;">
+                <input type="text" name="code" placeholder="Code (e.g. SAVE10)" required style="padding:10px; border:2px solid #e0e0e0; border-radius:8px; width:140px;">
+                <select name="discount_type" style="padding:10px; border:2px solid #e0e0e0; border-radius:8px;">
+                    <option value="percent">Percent %</option>
+                    <option value="fixed">Fixed ₹</option>
+                </select>
+                <input type="number" name="discount_value" placeholder="Value" step="0.01" min="0" required style="padding:10px; border:2px solid #e0e0e0; border-radius:8px; width:100px;">
+                <button type="submit" class="btn-submit" style="width:auto; margin-top:0;">Add</button>
+            </form>
+            <table style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr style="border-bottom:2px solid #e0e0e0;">
+                        <th style="text-align:left; padding:10px;">Code</th>
+                        <th style="text-align:left; padding:10px;">Type</th>
+                        <th style="text-align:left; padding:10px;">Value</th>
+                        <th style="text-align:left; padding:10px;">Status</th>
+                        <th style="text-align:left; padding:10px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in coupons %}
+                    <tr style="border-bottom:1px solid #eee;">
+                        <td style="padding:10px; font-weight:600;">{{ c.code }}</td>
+                        <td style="padding:10px;">{{ c.discount_type }}</td>
+                        <td style="padding:10px;">{{ c.discount_value }}{% if c.discount_type == 'percent' %}%{% else %}₹{% endif %}</td>
+                        <td style="padding:10px;">
+                            <span style="padding:4px 10px; border-radius:12px; font-size:12px; font-weight:600; {% if c.is_active %}background:#d4edda; color:#155724;{% else %}background:#f8d7da; color:#721c24;{% endif %}">
+                                {% if c.is_active %}Active{% else %}Inactive{% endif %}
+                            </span>
+                        </td>
+                        <td style="padding:10px;">
+                            <form method="POST" action="/admin/contact/coupon/{{ c.id }}/toggle" style="display:inline;">
+                                <button type="submit" style="padding:6px 12px; background:#17a2b8; color:white; border:none; border-radius:6px; cursor:pointer; font-size:13px;">Toggle</button>
+                            </form>
+                            <form method="POST" action="/admin/contact/coupon/{{ c.id }}/delete" style="display:inline;" onsubmit="return confirm('Delete this coupon?');">
+                                <button type="submit" style="padding:6px 12px; background:#dc3545; color:white; border:none; border-radius:6px; cursor:pointer; font-size:13px;">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5" style="padding:20px; color:#666;">No coupons yet. Add one above.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </body>

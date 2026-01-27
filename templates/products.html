@@ -60,6 +60,12 @@
             opacity: 0.8;
         }
 
+        .wishlist-btn { position: absolute; top: 10px; right: 10px; z-index: 2; }
+        .wishlist-btn button { background: rgba(255,255,255,0.95); border: none; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; font-size: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); transition: transform 0.2s; }
+        .wishlist-btn button:hover { transform: scale(1.1); }
+        .wishlist-btn .in-wl { color: #e74c3c; }
+        .wishlist-btn .out-wl { color: #999; }
+
         .cart-badge {
             background: rgba(255, 255, 255, 0.3);
             padding: 5px 10px;
@@ -95,6 +101,7 @@
         }
 
         .product-card {
+            position: relative;
             background: white;
             border-radius: 15px;
             overflow: hidden;
@@ -213,6 +220,130 @@
             color: #666;
         }
 
+        .filters-section {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .filters-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .filter-label {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .filter-input {
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .filter-input:focus {
+            outline: none;
+            border-color: #C59D5F;
+        }
+
+        .price-range-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .price-input {
+            flex: 1;
+            padding: 8px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .filter-rating-select { width: 100%; min-width: 0; }
+
+        .filter-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .btn-filter {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #C59D5F 0%, #B8860B 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-filter:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(197, 157, 95, 0.4);
+        }
+
+        .btn-clear {
+            padding: 10px 20px;
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-clear:hover {
+            background: #5a6268;
+        }
+
+        .product-rating {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .stars-display {
+            color: #ffc107;
+        }
+
+        .product-category {
+            display: inline-block;
+            padding: 4px 10px;
+            background: #f0f0f0;
+            border-radius: 12px;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
         @media (max-width: 768px) {
             .nav-content {
                 flex-direction: column;
@@ -220,6 +351,10 @@
             }
 
             .products-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .filters-grid {
                 grid-template-columns: 1fr;
             }
         }
@@ -265,10 +400,80 @@
             <p>Discover premium furniture for your home</p>
         </div>
 
+        <div class="filters-section">
+            <div class="filters-title">🔍 Filter Products</div>
+            <form method="GET" action="/products" id="filterForm">
+                <div class="filters-grid">
+                    <div class="filter-group">
+                        <label class="filter-label">Price Range (₹)</label>
+                        <div class="price-range-container">
+                            <input type="number" name="min_price" class="price-input" placeholder="Min" 
+                                   value="{{ current_filters.min_price if current_filters.min_price else '' }}" 
+                                   min="{{ min_price_db }}" max="{{ max_price_db }}">
+                            <span>-</span>
+                            <input type="number" name="max_price" class="price-input" placeholder="Max" 
+                                   value="{{ current_filters.max_price if current_filters.max_price else '' }}" 
+                                   min="{{ min_price_db }}" max="{{ max_price_db }}">
+                        </div>
+                        <small style="color: #666; font-size: 11px;">Range: ₹{{ "%.0f"|format(min_price_db) }} - ₹{{ "%.0f"|format(max_price_db) }}</small>
+                    </div>
+
+                    <div class="filter-group">
+                        <label class="filter-label">Minimum Rating</label>
+                        <select name="min_rating" class="filter-input filter-rating-select">
+                            <option value="">Any rating</option>
+                            <option value="1" {% if current_filters.min_rating == 1 %}selected{% endif %}>★ 1+</option>
+                            <option value="2" {% if current_filters.min_rating == 2 %}selected{% endif %}>★ 2+</option>
+                            <option value="3" {% if current_filters.min_rating == 3 %}selected{% endif %}>★ 3+</option>
+                            <option value="4" {% if current_filters.min_rating == 4 %}selected{% endif %}>★ 4+</option>
+                            <option value="5" {% if current_filters.min_rating == 5 %}selected{% endif %}>★ 5 only</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label class="filter-label">Category</label>
+                        <select name="category" class="filter-input">
+                            <option value="">All Categories</option>
+                            {% for cat in categories %}
+                            <option value="{{ cat }}" {% if current_filters.category == cat %}selected{% endif %}>
+                                {{ cat }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label class="filter-label">Sort By</label>
+                        <select name="sort" class="filter-input">
+                            <option value="" {% if not current_filters.sort %}selected{% endif %}>Newest</option>
+                            <option value="rating_desc" {% if current_filters.sort == 'rating_desc' %}selected{% endif %}>Rating (High to Low)</option>
+                            <option value="price_asc" {% if current_filters.sort == 'price_asc' %}selected{% endif %}>Price (Low to High)</option>
+                            <option value="price_desc" {% if current_filters.sort == 'price_desc' %}selected{% endif %}>Price (High to Low)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="filter-actions">
+                    <button type="submit" class="btn-filter">Apply Filters</button>
+                    <a href="/products" class="btn-clear" style="text-decoration: none; display: inline-block;">Clear Filters</a>
+                </div>
+            </form>
+        </div>
+
         {% if products %}
         <div class="products-grid">
             {% for p in products %}
             <div class="product-card">
+                <div class="wishlist-btn">
+                    {% if p.id in wishlist_ids %}
+                    <form method="POST" action="/remove-from-wishlist/{{ p.id }}" style="display:inline;">
+                        <button type="submit" class="in-wl" title="Remove from wishlist">♥</button>
+                    </form>
+                    {% else %}
+                    <form method="POST" action="/add-to-wishlist/{{ p.id }}" style="display:inline;">
+                        <button type="submit" class="out-wl" title="Add to wishlist">♡</button>
+                    </form>
+                    {% endif %}
+                </div>
                 <div class="product-image">
                     {% if p.image_url %}
                         <img src="{{ p.image_url }}" alt="{{ p.name }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 10px;">
@@ -277,8 +482,24 @@
                     {% endif %}
                 </div>
                 <div class="product-info">
+                    {% if p.category %}
+                    <div class="product-category">{{ p.category }}</div>
+                    {% endif %}
                     <div class="product-name">{{ p.name }}</div>
                     <div class="product-description">{{ p.description or 'Premium quality furniture' }}</div>
+                    {% if p.avg_rating and p.avg_rating > 0 %}
+                    <div class="product-rating">
+                        <span class="stars-display" style="display:flex; gap:2px; flex-wrap:wrap;">
+                            {% set filled = p.avg_rating|round(0, 'floor')|int %}
+                            {% for i in range(5) %}
+                                <span style="font-size:14px; line-height:1;">
+                                    {% if i < filled %}★{% else %}☆{% endif %}
+                                </span>
+                            {% endfor %}
+                        </span>
+                        <span>({{ "%.1f"|format(p.avg_rating) }}{% if p.rating_count %}, {{ p.rating_count }}{% endif %})</span>
+                    </div>
+                    {% endif %}
                     <div class="product-price">₹{{ "%.2f"|format(p.price) }}</div>
                     <form method="POST" action="/add-to-cart/{{ p.id }}">
                         <button type="submit" class="btn-add-cart">Add to Cart</button>
